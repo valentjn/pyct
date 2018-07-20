@@ -120,23 +120,61 @@ if False:
 
 
 
-functionType = "branin"
-d = 2
-basis = d * [{"type" : "bSpline", "degree" : 1}]
-n = 7
-f = testfcns.getFunction(functionType, d)
-X = pyct.getRegularSparseGridPoints(n, d)
-fX = f(X)
+def computeErrors(functionType, d, interpEvalFullGridFcn,
+                  derivatives, nMax, NMax):
+  errors = {}
+  f = testfcns.getFunction(functionType, d)
+  
+  if derivatives == "none":
+    pass
+  elif derivatives == "simple":
+    df = testfcns.getFunctionGradient(functionType, d)
+  elif derivatives == "mixed":
+    df = testfcns.getFunctionFirstDerivatives(functionType, d)
+  else:
+    raise ValueError("Unknown value for derivatives.")
+  
+  np.random.seed(342)
+  NN = 10000
+  XX = np.random.random((NN, d))
+  fXX = f(XX)
+  
+  for n in range(nMax+1):
+    X = pyct.getRegularSparseGridPoints(n, d)
+    N = X.shape[0]
+    if N > NMax: break
+    fX  = f(X)
+    dfX = df(X)
+    YY = pyct.interpolateEvaluateCTCombination(
+        interpEvalFullGridFcn, n, X, fX, dfX, XX)
+    error = np.sqrt(np.mean((fXX - YY)**2))
+    errors[N] = error
+  
+  return errors
 
-np.random.seed(342)
-NN = 10000
-XX = np.random.random((NN, d))
-fXX = f(XX)
+def computeConvergenceOrders(errors):
+  Ns = sorted(list(errors.keys()))
+  orders = {}
+  
+  for prevN, N in zip(Ns[:-1], Ns[1:]):
+    prevError, error = errors[prevN], errors[N]
+    order = -np.log(error/prevError) / np.log(N/prevN)
+    orders[N] = order
+  
+  return orders
 
-df = testfcns.getFunctionGradient(functionType, d)
-dfX = df(X)
-interpEvalFullGridFcn = pyct.InterpolatorEvaluatorBHCombinationFullGrid(basis)
 
-YY = pyct.interpolateEvaluateCTCombination(
-    interpEvalFullGridFcn, n, X, fX, dfX, XX)
-print(np.sqrt(np.mean((fXX - YY)**2)))
+
+errors = computeErrors("branin", 2,
+    pyct.InterpolatorEvaluatorBHCombinationFullGrid(
+        2 * [{"type" : "bSpline", "degree" : 1}]),
+    "simple", 10, 10000)
+print(errors)
+print(computeConvergenceOrders(errors))
+
+errors = computeErrors("branin", 2,
+    pyct.InterpolatorEvaluatorDerivativeCombinationFullGrid(
+        2 * [{"type" : "hermiteValue"}]),
+    "mixed", 10, 10000)
+print(errors)
+print(computeConvergenceOrders(errors))
