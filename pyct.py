@@ -147,8 +147,29 @@ def interpolateEvaluateFullGrid(basis, l, fX, XX):
   YY = evaluateFullGrid(basis, l, c, XX)
   return YY
 
+def derivativesToGradientMatrix(dfX, d):
+  if isinstance(dfX, dict):
+    orders = np.eye(d, dtype=int).tolist()
+    dfX = np.stack([dfX[tuple(order)] for order in orders])
+  
+  assert dfX.ndim == d+1, "dfX should be a (d+1)-dimensional array."
+  assert dfX.shape[d] == d, ("The last dimension of dfX should have d "
+                              "entries, one for each derivative.")
+  return dfX
+
+def derivativesToDictByOrder(dfX, d):
+  if not isinstance(dfX, dict):
+    assert dfX.ndim == d+1, "dfX should be a (d+1)-dimensional array."
+    assert dfX.shape[d] == d, ("The last dimension of dfX should have d "
+                               "entries, one for each derivative.")
+    dfX = {tuple(orders[t+1]) : dfX[d * [np.s_[:]] + [t]]
+           for t in range(d)}
+  
+  return dfX
+
 def interpolateEvaluateBHCombinationFullGrid(basis, l, fX, dfX, XX):
   d = len(l)
+  dfX = derivativesToGradientMatrix(dfX, d)
   YY = np.zeros((XX.shape[0],))
   
   for t in range(-1, d):
@@ -175,6 +196,7 @@ def interpolateEvaluateBHCombinationFullGrid(basis, l, fX, dfX, XX):
 def interpolateEvaluateDerivativeCombinationFullGrid(
     basis, l, fX, dfX, XX, derivatives="mixed"):
   d = len(l)
+  dfX = derivativesToDictByOrder(dfX, d)
   YY = np.zeros((XX.shape[0],))
   
   if derivatives == "simple":
