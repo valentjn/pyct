@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+import abc
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -249,6 +251,39 @@ def getRegularSparseGridPoints(n, d):
   L = getRegularSparseGridCTLevels(n, d)
   X = np.unique(np.vstack([getFullGrid(l) for l in L]), axis=0)
   return X
+
+class AbstractInterpolatorEvaluatorFullGrid(abc.ABC):
+  @abc.abstractmethod
+  def __call__(l, fX, dfX, XX): pass
+
+class InterpolatorEvaluatorFullGrid(
+    AbstractInterpolatorEvaluatorFullGrid):
+  def __init__(self, basis):
+    self.basis = basis
+  
+  def __call__(self, l, fX, dfX, XX):
+    YY = interpolateEvaluateFullGrid(self.basis, l, fX, XX)
+    return YY
+
+class InterpolatorEvaluatorBHCombinationFullGrid(
+    AbstractInterpolatorEvaluatorFullGrid):
+  def __init__(self, basis):
+    self.basis = basis
+  
+  def __call__(self, l, fX, dfX, XX):
+    YY = interpolateEvaluateBHCombinationFullGrid(self.basis, l, fX, dfX, XX)
+    return YY
+
+class InterpolatorEvaluatorDerivativeCombinationFullGrid(
+    AbstractInterpolatorEvaluatorFullGrid):
+  def __init__(self, basis, derivatives="mixed"):
+    self.basis = basis
+    self.derivatives = derivatives
+  
+  def __call__(self, l, fX, dfX, XX):
+    YY = interpolateEvaluateDerivativeCombinationFullGrid(
+        self.basis, l, fX, dfX, XX, derivatives=self.derivatives)
+    return YY
 
 def interpolateEvaluateCTCombination(
       interpEvalFullGridFcn, n, X, fX, dfX, XX):
