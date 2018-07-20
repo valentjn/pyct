@@ -246,7 +246,8 @@ def enumerateLevels(n, d, includeZero=True):
     if n >= 0:
       L = np.zeros((N, d), dtype=int)
       k = enumerateLevelsRecursive(n, d, 0, L, 0)
-      assert k == N
+      assert k == N, ("The number of generated sparse grid levels "
+                      "is not as calculated.")
     else:
       L = np.zeros((0, d), dtype=int)
   else:
