@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
 import abc
+import functools
+import multiprocessing
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -285,43 +287,43 @@ class InterpolatorEvaluatorDerivativeCombinationFullGrid(
         self.basis, l, fX, dfX, XX, derivatives=self.derivatives)
     return YY
 
+def _interpEvalCTLevel(interpEvalFullGridFcn, n, X, fX, dfX, XX, l):
+  d = X.shape[1]
+  q = n - np.sum(l)
+  coeff = (-1)**q * scipy.special.comb(d-1, q, exact=True)
+  
+  curX = getFullGrid(l)
+  K = in1d_index(curX, X)
+  curX = X[K,:]
+  J = rowSortIndices(curX)
+  K = K[J]
+  curX = X[K,:]
+  
+  curShape = [len(getFullGridPoints1D(l1D)) for l1D in l]
+  curFX = np.reshape(fX[K], curShape)
+  
+  if isinstance(dfX, np.ndarray):
+    curDfX = np.reshape(dfX[K,:], curShape + [dfX.shape[1]])
+  elif isinstance(dfX, dict):
+    curDfX = {key : np.reshape(dfX[key][K], curShape) for key in dfX}
+  else:
+    raise ValueError("Unknown dfX type")
+  
+  YY = coeff * interpEvalFullGridFcn(l, curFX, curDfX, XX)
+  return YY
+
 def interpolateEvaluateCTCombination(
       interpEvalFullGridFcn, n, X, fX, dfX, XX):
   d = X.shape[1]
   L = getRegularSparseGridCTLevels(n, d)
+  args = [interpEvalFullGridFcn, n, X, fX, dfX, XX]
   
-  def processLevel(l):
-    q = n - np.sum(l)
-    coeff = (-1)**q * scipy.special.comb(d-1, q, exact=True)
-    
-    curX = getFullGrid(l)
-    K = in1d_index(curX, X)
-    curX = X[K,:]
-    J = rowSortIndices(curX)
-    K = K[J]
-    curX = X[K,:]
-    
-    curShape = [len(getFullGridPoints1D(l1D)) for l1D in l]
-    curFX = np.reshape(fX[K], curShape)
-    
-    if isinstance(dfX, np.ndarray):
-      curDfX = np.reshape(dfX[K,:], curShape + [dfX.shape[1]])
-    elif isinstance(dfX, dict):
-      curDfX = {key : np.reshape(dfX[key][K], curShape) for key in dfX}
-    else:
-      raise ValueError("Unknown dfX type")
-    
-    YY = coeff * interpEvalFullGridFcn(l, curFX, curDfX, XX)
-    return YY
+  #YYs = [_interpEvalCTLevel(*args, l) for l in L]
   
-  #YY = np.sum([processLevel(l) for l in L])
-  #print([processLevel(l).shape for l in L])
+  with multiprocessing.Pool() as pool:
+    YYs = pool.map(functools.partial(_interpEvalCTLevel, *args), L)
   
-  YY = np.zeros((XX.shape[0],))
-  for l in L:
-    print(l)
-    YY += processLevel(l)
-  
+  YY = sum(YYs)
   return YY
 
 
