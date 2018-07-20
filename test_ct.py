@@ -447,14 +447,13 @@ X = getRegularSparseGridPoints(n, d)
 fX = f(X)
 
 np.random.seed(342)
-NN = 100000
+NN = 10000
 XX = np.random.random((NN, d))
 fXX = f(XX)
 
 df = testfcns.getFunctionGradient(functionType, d)
 dfX = df(X)
-interpEvalFullGridFcn = (lambda l, fX, dfX, XX:
-    interpolateEvaluateBHCombinationFullGrid(basis, l, fX, dfX, XX))
+interpEvalFullGridFcn = InterpolatorEvaluatorBHCombinationFullGrid(basis)
 
 YY = interpolateEvaluateCTCombination(
     interpEvalFullGridFcn, n, X, fX, dfX, XX)
