@@ -72,17 +72,17 @@ def evaluateBasis1D(basis, l, i, XX, boundaryTreatment="BH"):
       YY[K] = scipy.signal.bspline(XXK, p)
       # TODO: implement not-a-knot basis
     elif basis["type"] == "hermiteValue":
-      K = np.logical_and((XX > -1.0), (XX <= 0.0))
+      K = np.logical_and((XX > -1), (XX <= 0))
       XXK = XX[K]
       YY[K] = ((-2*XXK - 3) * XXK) * XXK + 1
-      K = np.logical_and((XX > 0.0),  (XX < 1.0))
+      K = np.logical_and((XX > 0),  (XX < 1))
       XXK = XX[K]
       YY[K] = (( 2*XXK - 3) * XXK) * XXK + 1
     elif basis["type"] == "hermiteDeriv":
-      K = np.logical_and((XX > -1.0), (XX <= 0.0))
+      K = np.logical_and((XX > -1), (XX <= 0))
       XXK = XX[K]
       YY[K] = ((XXK + 2) * XXK + 1) * XXK
-      K = np.logical_and((XX > 0.0),  (XX < 1.0))
+      K = np.logical_and((XX > 0),  (XX < 1))
       XXK = XX[K]
       YY[K] = ((XXK - 2) * XXK + 1) * XXK
     else:
