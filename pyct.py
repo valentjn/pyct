@@ -37,7 +37,7 @@ def getFullGridPoints1D(l, boundaryTreatment="BH"):
     if boundaryTreatment == "BH":
       x = np.array([0.5])  # de Baar/Harding
     elif boundaryTreatment == "JV":
-      x = np.array([0, 1]) # Valentin
+      x = np.array([0.0, 1.0]) # Valentin
     else:
       raise ValueError("Unknown boundary treatment")
   else:
