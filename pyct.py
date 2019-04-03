@@ -32,7 +32,7 @@ def rowSortIndices(A):
   return np.lexsort(A.T[::-1,:])
 
 
-def getFullGridPoints1D(l, boundaryTreatment="BH"):
+def getFullGrid1D(l, boundaryTreatment="BH"):
   if l == 0:
     if boundaryTreatment == "BH":
       x = np.array([0.5])  # de Baar/Harding
@@ -46,15 +46,13 @@ def getFullGridPoints1D(l, boundaryTreatment="BH"):
   return x
 
 def getFullGrid(l, indices=False):
-  Xs = [getFullGridPoints1D(l1D) for l1D in l]
+  Xs = [getFullGrid1D(l1D) for l1D in l]
   if indices: Xs = [list(range(len(X))) for X in Xs]
   Xs = np.meshgrid(*Xs, indexing="ij")
   X = np.column_stack([X.flatten() for X in Xs])
   return X
 
 def evaluateBasis1D(basis, l, i, XX, boundaryTreatment="BH"):
-  getXXK = lambda XX, K: XX[K]
-  
   if (l == 0) and (boundaryTreatment == "BH"):
     if basis["type"] == "hermiteDeriv":
       YY = np.zeros_like(XX)
@@ -67,8 +65,7 @@ def evaluateBasis1D(basis, l, i, XX, boundaryTreatment="BH"):
     if basis["type"] == "bSpline":
       p = basis["degree"]
       K = np.logical_and((XX > -(p+1)/2), (XX < (p+1)/2))
-      XXK = getXXK(XX, K)
-      YY[K] = scipy.signal.bspline(XXK, p)
+      YY[K] = scipy.signal.bspline(XX[K], p)
       # TODO: implement not-a-knot basis
     elif basis["type"] == "hermiteValue":
       K = np.logical_and((XX > -1), (XX <= 0))
@@ -90,7 +87,7 @@ def evaluateBasis1D(basis, l, i, XX, boundaryTreatment="BH"):
   return YY
 
 def getInterpolationMatrix1D(basis, l):
-  X = getFullGridPoints1D(l)
+  X = getFullGrid1D(l)
   N = len(X)
   A = np.zeros((N, N))
   
@@ -129,16 +126,35 @@ def interpolateFullGrid(basis, l, fX):
   
   return c
 
+#def _evalFullGridSingleFunctionInitializer(*args):
+#  global c, basis, l, XX, curYY
+#  c, basis, l, XX = args
+#  curYY = np.zeros((XX.shape[0],))
+#
+#def _evalFullGridSingleFunction(i):
+#  global c, basis, l, XX, curYY
+#  curYY.fill(c[tuple(i)])
+#  for t in range(XX.shape[1]):
+#    curYY *= evaluateBasis1D(basis[t], l[t], i[t], XX[:,t])
+#  return curYY
+
 def evaluateFullGrid(basis, l, c, XX):
   d = len(l)
   YY = np.zeros((XX.shape[0],))
   I = getFullGrid(l, indices=True)
   
+  curYY = np.zeros_like(YY)
   for i in I:
-    curYY = c[tuple(i)] * np.ones_like(YY)
+    curYY.fill(c[tuple(i)])
     for t in range(d):
       curYY *= evaluateBasis1D(basis[t], l[t], i[t], XX[:,t])
     YY += curYY
+  
+  #with multiprocessing.Pool(
+  #    initializer=_evalFullGridSingleFunctionInitializer,
+  #    initargs=[c, basis, l, XX]) as pool:
+  #  YYs = pool.map(_evalFullGridSingleFunction, I)
+  #YY = sum(YYs)
   
   return YY
 
@@ -267,14 +283,14 @@ def getRegularSparseGridCTLevels(n, d):
   
   return L
 
-def getRegularSparseGridPoints(n, d):
+def getRegularSparseGrid(n, d):
   L = getRegularSparseGridCTLevels(n, d)
   X = np.unique(np.vstack([getFullGrid(l) for l in L]), axis=0)
   return X
 
 class AbstractInterpolatorEvaluatorFullGrid(abc.ABC):
   @abc.abstractmethod
-  def __call__(l, fX, dfX, XX): pass
+  def __call__(self, l, fX, dfX, XX): pass
 
 class InterpolatorEvaluatorFullGrid(
     AbstractInterpolatorEvaluatorFullGrid):
@@ -317,13 +333,15 @@ def _interpEvalCTLevel(interpEvalFullGridFcn, n, X, fX, dfX, XX, l):
   K = K[J]
   curX = X[K,:]
   
-  curShape = [len(getFullGridPoints1D(l1D)) for l1D in l]
+  curShape = [len(getFullGrid1D(l1D)) for l1D in l]
   curFX = np.reshape(fX[K], curShape)
   
   if isinstance(dfX, np.ndarray):
     curDfX = np.reshape(dfX[K,:], curShape + [dfX.shape[1]])
   elif isinstance(dfX, dict):
     curDfX = {key : np.reshape(dfX[key][K], curShape) for key in dfX}
+  elif dfX is None:
+    pass
   else:
     raise ValueError("Unknown dfX type")
   

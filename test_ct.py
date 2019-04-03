@@ -49,7 +49,7 @@ if False:
   l = [1, 2]
   f = testfcns.getFunction(functionType, d)
   X = pyct.getFullGrid(l)
-  shape = [len(pyct.getFullGridPoints1D(l1D)) for l1D in l]
+  shape = [len(pyct.getFullGrid1D(l1D)) for l1D in l]
   fX  = np.reshape(f(X), shape)
   
   #c = interpolateFullGrid(basis, l, fX)
@@ -87,7 +87,7 @@ if False:
   basis = d * [{"type" : "hermiteValue", "degree" : 1}]
   n = 3
   f = testfcns.getFunction(functionType, d)
-  X = pyct.getRegularSparseGridPoints(n, d)
+  X = pyct.getRegularSparseGrid(n, d)
   fX = f(X)
   
   #df = testfcns.getFunctionGradient(functionType, d)
@@ -120,8 +120,8 @@ if False:
 
 
 
-def computeErrors(functionType, d, interpEvalFullGridFcn,
-                  derivatives, nMax, NMax):
+def computeFullGridErrors(functionType, d, interpEvalFullGridFcn,
+                          derivatives, nMax, NMax):
   errors = {}
   f = testfcns.getFunction(functionType, d)
   
@@ -140,11 +140,56 @@ def computeErrors(functionType, d, interpEvalFullGridFcn,
   fXX = f(XX)
   
   for n in range(nMax+1):
-    X = pyct.getRegularSparseGridPoints(n, d)
+    l = n * np.ones((d,))
+    X = pyct.getFullGrid(l)
     N = X.shape[0]
     if N > NMax: break
     fX  = f(X)
-    dfX = df(X)
+    dfX = (df(X) if derivatives != "none" else None)
+    
+    shape = [len(pyct.getFullGrid1D(l1D)) for l1D in l]
+    fX = np.reshape(fX, shape)
+    
+    if isinstance(dfX, np.ndarray):
+      dfX = np.reshape(dfX, shape + [dfX.shape[1]])
+    elif isinstance(dfX, dict):
+      dfX = {key : np.reshape(dfX[key], shape) for key in dfX}
+    elif dfX is None:
+      pass
+    else:
+      raise ValueError("Unknown dfX type")
+    
+    YY = interpEvalFullGridFcn(l, fX, dfX, XX)
+    error = np.sqrt(np.mean((fXX - YY)**2))
+    errors[N] = error
+  
+  return errors
+
+def computeSparseGridErrors(functionType, d, interpEvalFullGridFcn,
+                            derivatives, nMax, NMax):
+  errors = {}
+  f = testfcns.getFunction(functionType, d)
+  
+  if derivatives == "none":
+    pass
+  elif derivatives == "simple":
+    df = testfcns.getFunctionGradient(functionType, d)
+  elif derivatives == "mixed":
+    df = testfcns.getFunctionFirstDerivatives(functionType, d)
+  else:
+    raise ValueError("Unknown value for derivatives.")
+  
+  np.random.seed(342)
+  NN = 10000
+  XX = np.random.random((NN, d))
+  fXX = f(XX)
+  
+  for n in range(nMax+1):
+    X = pyct.getRegularSparseGrid(n, d)
+    N = X.shape[0]
+    if N > NMax: break
+    fX  = f(X)
+    dfX = (df(X) if derivatives != "none" else None)
     YY = pyct.interpolateEvaluateCTCombination(
         interpEvalFullGridFcn, n, X, fX, dfX, XX)
     error = np.sqrt(np.mean((fXX - YY)**2))
@@ -165,16 +210,33 @@ def computeConvergenceOrders(errors):
 
 
 
-errors = computeErrors("branin", 2,
+errors = computeFullGridErrors("ackley", 2,
     pyct.InterpolatorEvaluatorBHCombinationFullGrid(
         2 * [{"type" : "bSpline", "degree" : 1}]),
-    "simple", 10, 10000)
+    "simple", 10, 5000)
 print(errors)
 print(computeConvergenceOrders(errors))
 
-errors = computeErrors("branin", 2,
+import sys
+sys.exit(0)
+
+errors = computeSparseGridErrors("ackley", 2,
+    pyct.InterpolatorEvaluatorBHCombinationFullGrid(
+        2 * [{"type" : "bSpline", "degree" : 1}]),
+    "simple", 10, 5000)
+print(errors)
+print(computeConvergenceOrders(errors))
+
+errors = computeFullGridErrors("ackley", 2,
     pyct.InterpolatorEvaluatorDerivativeCombinationFullGrid(
         2 * [{"type" : "hermiteValue"}]),
-    "mixed", 10, 10000)
+    "mixed", 10, 5000)
+print(errors)
+print(computeConvergenceOrders(errors))
+
+errors = computeSparseGridErrors("ackley", 2,
+    pyct.InterpolatorEvaluatorDerivativeCombinationFullGrid(
+        2 * [{"type" : "hermiteValue"}]),
+    "mixed", 10, 5000)
 print(errors)
 print(computeConvergenceOrders(errors))

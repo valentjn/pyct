@@ -6,8 +6,15 @@ import sympy as sp
 
 
 functionStrings = {
-  "branin" : ("(x1 - 51/10*x0^2/(4*pi^2) + 5*x0/pi - 6)^2 + "
-              "10*(1-1/(8*pi))*cos(x0) + 10", np.array([[-5, 0], [10, 15]])),
+  "ackley" : (lambda d: (
+      "-20*exp(-({})/(5*sqrt({}))) - exp(1/{}*({})) + 20 + exp(1)".format(
+          "+".join(["x{}".format(t) for t in range(d)]), d, d,
+          "+".join(["cos(2*pi*x{})".format(t) for t in range(d)])),
+      # TODO: changed domain!
+      np.array([1*np.ones((d,)), 2*np.ones((d,))]))),
+  "branin" : (
+      "(x1 - 51/10*x0^2/(4*pi^2) + 5*x0/pi - 6)^2 + "
+      "10*(1-1/(8*pi))*cos(x0) + 10", np.array([[-5, 0], [10, 15]])),
 }
 
 
@@ -17,7 +24,9 @@ def getFunction(functionType, d):
 
 def getFunctionDerivative(functionType, d, order):
   variables = [sp.var("x{}".format(t)) for t in range(d)]
-  functionString, bounds = functionStrings[functionType]
+  functionString, bounds = (functionStrings[functionType](d)
+      if callable(functionStrings[functionType]) else
+      functionStrings[functionType])
   functionExpression = sp.sympify(functionString)
   innerDerivative = 1
   
